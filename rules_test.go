@@ -45,3 +45,71 @@ func TestAnalyzePlanSafeCreation(t *testing.T) {
 		t.Errorf("expected no findings, got %d", len(findings))
 	}
 }
+
+func TestDetectsPublicSSH(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_security_group.web",
+				Type:    "aws_security_group",
+				Change: Change{
+					Actions: []string{"create"},
+					After: map[string]interface{}{
+						"ingress": []interface{}{
+							map[string]interface{}{
+								"from_port":   float64(22),
+								"to_port":     float64(22),
+								"cidr_blocks": []interface{}{"0.0.0.0/0"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	found := false
+	for _, finding := range findings {
+		if finding.RuleID == "TF003" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatal("expected TF003 finding for public SSH")
+	}
+}
+
+func TestDoesNotFlagPrivateSSH(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_security_group.internal",
+				Type:    "aws_security_group",
+				Change: Change{
+					Actions: []string{"create"},
+					After: map[string]interface{}{
+						"ingress": []interface{}{
+							map[string]interface{}{
+								"from_port":   float64(22),
+								"to_port":     float64(22),
+								"cidr_blocks": []interface{}{"10.0.0.0/8"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	for _, finding := range findings {
+		if finding.RuleID == "TF003" {
+			t.Fatal("unexpected public SSH finding for private CIDR")
+		}
+	}
+}

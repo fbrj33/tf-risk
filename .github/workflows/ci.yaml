@@ -1,0 +1,47 @@
+
+name: tf-risk CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build CLI
+        run: go build -o tf-risk .
+
+      - name: Verify unsafe plan is blocked
+        shell: bash
+        run: |
+          set +e
+          go run . --plan examples/basic/unsafe-plan.json --fail-on high
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "ERROR: Unsafe plan was not blocked."
+            exit 1
+          fi
+
+          if [ "$status" -ne 1 ]; then
+            echo "ERROR: Unexpected exit code: $status"
+            exit 1
+          fi
+
+          echo "PASS: Unsafe plan was blocked."

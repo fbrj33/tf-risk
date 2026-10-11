@@ -6,13 +6,12 @@ import (
 )
 
 type Finding struct {
-	RuleID      string
-	Severity    string
-	Resource    string
-	Message     string
-	Remediation string
+    RuleID      string `json:"rule_id"`
+    Severity    string `json:"severity"`
+    Resource    string `json:"resource"`
+    Message     string `json:"message"`
+    Remediation string `json:"remediation"`
 }
-
 func AnalyzePlan(plan *Plan) []Finding {
 	var findings []Finding
 

@@ -1,0 +1,20 @@
+
+{
+  "format_version": "1.2",
+  "resource_changes": [
+    {
+      "address": "aws_security_group_rule.private_ssh",
+      "type": "aws_security_group_rule",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "type": "ingress",
+          "from_port": 22,
+          "to_port": 22,
+          "protocol": "tcp",
+          "cidr_blocks": ["10.0.0.0/16"]
+        }
+      }
+    }
+  ]
+}

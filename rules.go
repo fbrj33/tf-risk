@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 type Finding struct {
 	RuleID      string
@@ -47,6 +50,8 @@ func AnalyzePlan(plan *Plan) []Finding {
 		}
 
 		findings = append(findings, analyzeNetworkResource(resource)...)
+		findings = append(findings, analyzeStorageResource(resource)...)
+		findings = append(findings, analyzeIAMResource(resource)...)
 	}
 
 	return findings
@@ -174,4 +179,115 @@ func numberValue(value interface{}) int {
 	}
 
 	return 0
+}
+
+func analyzeStorageResource(resource ResourceChange) []Finding {
+	attrs := resource.Change.After
+	if attrs == nil {
+		return nil
+	}
+
+	var message string
+
+	switch resource.Type {
+	case "aws_s3_bucket_acl":
+		acl, _ := attrs["acl"].(string)
+		if acl == "public-read" || acl == "public-read-write" {
+			message = "S3 bucket ACL allows public access."
+		}
+
+	case "aws_s3_bucket_public_access_block":
+		flags := []string{
+			"block_public_acls",
+			"ignore_public_acls",
+			"block_public_policy",
+			"restrict_public_buckets",
+		}
+
+		for _, flag := range flags {
+			if value, ok := attrs[flag].(bool); ok && !value {
+				message = "S3 public access protection is disabled: " + flag
+				break
+			}
+		}
+	}
+
+	if message == "" {
+		return nil
+	}
+
+	return []Finding{{
+		RuleID:      "TF005",
+		Severity:    "HIGH",
+		Resource:    resource.Address,
+		Message:     message,
+		Remediation: "Enable S3 Block Public Access and review bucket permissions.",
+	}}
+}
+
+func analyzeIAMResource(resource ResourceChange) []Finding {
+	switch resource.Type {
+	case "aws_iam_policy",
+		"aws_iam_role_policy",
+		"aws_iam_user_policy",
+		"aws_iam_group_policy":
+		// These resources can contain inline or managed IAM policy JSON.
+	default:
+		return nil
+	}
+
+	attrs := resource.Change.After
+	if attrs == nil {
+		return nil
+	}
+
+	policyText, ok := attrs["policy"].(string)
+	if !ok || policyText == "" {
+		return nil
+	}
+
+	var policy struct {
+		Statement []struct {
+			Action   json.RawMessage `json:"Action"`
+			Resource json.RawMessage `json:"Resource"`
+		} `json:"Statement"`
+	}
+
+	if err := json.Unmarshal([]byte(policyText), &policy); err != nil {
+		return nil
+	}
+
+	for _, statement := range policy.Statement {
+		if containsWildcard(statement.Action) &&
+			containsWildcard(statement.Resource) {
+			return []Finding{{
+				RuleID:   "TF006",
+				Severity: "HIGH",
+				Resource: resource.Address,
+				Message:  "IAM policy grants wildcard actions on all resources.",
+				Remediation: "Apply least privilege by limiting allowed actions " +
+					"and resources to what the workload actually needs.",
+			}}
+		}
+	}
+
+	return nil
+}
+
+func containsWildcard(value json.RawMessage) bool {
+	var single string
+	if err := json.Unmarshal(value, &single); err == nil {
+		return single == "*"
+	}
+
+	var multiple []string
+	if err := json.Unmarshal(value, &multiple); err == nil {
+		for _, item := range multiple {
+			if item == "*" {
+				return true
+			}
+		}
+	}
+
+	return false
 }

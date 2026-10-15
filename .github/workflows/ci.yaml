@@ -48,3 +48,17 @@ jobs:
           fi
 
           echo "PASS: Unsafe plan was blocked."
+      
+      - name: Generate SARIF report
+        if: always()
+        run: |
+          go run . --plan examples/basic/unsafe-plan.json --format sarif > tf-risk.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tf-risk.sarif
+
+         
+      

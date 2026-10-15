@@ -51,11 +51,23 @@ type SARIFRule struct {
 	ID               string `json:"id"`
 	ShortDescription Text   `json:"shortDescription"`
 }
+type SARIFLocation struct {
+	PhysicalLocation SARIFPhysicalLocation `json:"physicalLocation"`
+}
+
+type SARIFPhysicalLocation struct {
+	ArtifactLocation SARIFArtifactLocation `json:"artifactLocation"`
+}
+
+type SARIFArtifactLocation struct {
+	URI string `json:"uri"`
+}
 
 type SARIFResult struct {
-	RuleID  string `json:"ruleId"`
-	Level   string `json:"level"`
-	Message Text   `json:"message"`
+	RuleID    string          `json:"ruleId"`
+	Level     string          `json:"level"`
+	Message   Text            `json:"message"`
+	Locations []SARIFLocation `json:"locations"`
 }
 
 type Text struct {
@@ -88,6 +100,15 @@ func buildSARIF(findings []Finding) SARIFReport {
 			Message: Text{
 				Text: finding.Resource + ": " + finding.Message +
 					" Remediation: " + finding.Remediation,
+			},
+			Locations: []SARIFLocation{
+				{
+					PhysicalLocation: SARIFPhysicalLocation{
+						ArtifactLocation: SARIFArtifactLocation{
+							URI: "examples/basic/unsafe-plan.json",
+						},
+					},
+				},
 			},
 		})
 	}

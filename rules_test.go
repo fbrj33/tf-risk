@@ -113,3 +113,61 @@ func TestDoesNotFlagPrivateSSH(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectsPublicS3ACL(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{{
+			Address: "aws_s3_bucket_acl.demo",
+			Type:    "aws_s3_bucket_acl",
+			Change: Change{
+				Actions: []string{"create"},
+				After: map[string]interface{}{
+					"acl": "public-read",
+				},
+			},
+		}},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	for _, finding := range findings {
+		if finding.RuleID == "TF005" {
+			return
+		}
+	}
+
+	t.Fatal("expected TF005 for public S3 ACL")
+}
+
+func TestDetectsWildcardIAMPolicy(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{{
+			Address: "aws_iam_policy.admin",
+			Type:    "aws_iam_policy",
+			Change: Change{
+				Actions: []string{"create"},
+				After: map[string]interface{}{
+					"policy": `{
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": "*",
+							"Resource": "*"
+						}]
+					}`,
+				},
+			},
+		}},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	for _, finding := range findings {
+		if finding.RuleID == "TF006" {
+			return
+		}
+	}
+
+	t.Fatal("expected TF006 for wildcard IAM policy")
+}
+

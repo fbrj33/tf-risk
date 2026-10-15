@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -25,15 +24,15 @@ func main() {
 	outputFormat := flag.String(
 		"format",
 		"text",
-		"Output format: text or json",
+		"Output format: text or json, or sarif",
 	)
 
 	flag.Parse()
 
 	// Validate options before processing the plan.
 	format := strings.ToLower(*outputFormat)
-	if format != "text" && format != "json" {
-		fmt.Fprintln(os.Stderr, "Invalid --format value. Use text or json.")
+	if format != "text" && format != "json" && format != "sarif" {
+		fmt.Fprintln(os.Stderr, "Invalid --format value. Use text, json, or sarif.")
 		os.Exit(2)
 	}
 
@@ -81,8 +80,8 @@ func main() {
 	// Analyze the plan and calculate its risk.
 	findings := AnalyzePlan(plan)
 	if findings == nil {
-    findings = []Finding{}
-}
+		findings = []Finding{}
+	}
 	score := CalculateRiskScore(findings)
 
 	report := Report{
@@ -98,16 +97,25 @@ func main() {
 	}
 
 	// Output the report.
-	if format == "json" {
+	var output any
+
+	switch format {
+	case "json":
+		output = report
+	case "sarif":
+		output = buildSARIF(findings)
+	default:
+		printTextReport(plan, report)
+	}
+
+	if output != nil {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 
-		if err := encoder.Encode(report); err != nil {
+		if err := encoder.Encode(output); err != nil {
 			fmt.Fprintln(os.Stderr, "Error encoding report:", err)
 			os.Exit(1)
 		}
-	} else {
-		printTextReport(plan, report)
 	}
 
 	// Enforce the configured severity threshold.

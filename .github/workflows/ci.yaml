@@ -1,9 +1,12 @@
 
 name: tf-risk CI
-
+permissions:
+  contents: read
+  security-events: write
 on:
   push:
   pull_request:
+
 
 jobs:
   test:

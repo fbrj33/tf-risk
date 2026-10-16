@@ -82,3 +82,40 @@ severity_overrides:
 			config.SeverityOverrides["TF005"])
 	}
 }
+func TestLoadConfigRejectsUnknownRule(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invalid.yaml")
+
+	content := []byte(`
+disabled_rules:
+  - TF999
+severity_overrides: {}
+`)
+
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadConfig(path)
+	if err == nil {
+		t.Fatal("expected unknown rule ID to return an error")
+	}
+}
+
+func TestLoadConfigRejectsUnknownField(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invalid.yaml")
+
+	content := []byte(`
+disabled_rules: []
+severity_overrides: {}
+unknown_option: true
+`)
+
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadConfig(path)
+	if err == nil {
+		t.Fatal("expected unknown YAML field to return an error")
+	}
+}

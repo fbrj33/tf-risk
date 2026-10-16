@@ -1,5 +1,5 @@
 # tf-risk security policy
-disabled_rules: 
-  - TF003
+disabled_rules: []
+  
 
 severity_overrides: {}

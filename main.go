@@ -24,18 +24,28 @@ func main() {
 	outputFormat := flag.String(
 		"format",
 		"text",
-		"Output format: text or json, or sarif",
+		"Output format: text, json, or sarif",
+	)
+
+	configPath := flag.String(
+		"config",
+		"tf-risk.yaml",
+		"Path to security policy YAML file",
 	)
 
 	flag.Parse()
 
-	// Validate options before processing the plan.
-	format := strings.ToLower(*outputFormat)
+	// Validate the output format.
+	format := strings.ToLower(strings.TrimSpace(*outputFormat))
 	if format != "text" && format != "json" && format != "sarif" {
-		fmt.Fprintln(os.Stderr, "Invalid --format value. Use text, json, or sarif.")
+		fmt.Fprintln(
+			os.Stderr,
+			"Invalid --format value. Use text, json, or sarif.",
+		)
 		os.Exit(2)
 	}
 
+	// Validate the failure threshold.
 	var threshold int
 	if *failOn != "" {
 		var ok bool
@@ -47,6 +57,13 @@ func main() {
 			)
 			os.Exit(2)
 		}
+	}
+
+	// Load the security policy configuration.
+	config, err := LoadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(2)
 	}
 
 	// Load the Terraform plan.
@@ -65,10 +82,13 @@ func main() {
 		switch {
 		case len(actions) == 1 && actions[0] == "create":
 			creates++
+
 		case len(actions) == 1 && actions[0] == "update":
 			updates++
+
 		case len(actions) == 1 && actions[0] == "delete":
 			deletes++
+
 		case len(actions) == 2 &&
 			((actions[0] == "delete" && actions[1] == "create") ||
 				(actions[0] == "create" && actions[1] == "delete")):
@@ -77,11 +97,15 @@ func main() {
 		}
 	}
 
-	// Analyze the plan and calculate its risk.
+	// Analyze the plan and apply the security policy.
 	findings := AnalyzePlan(plan)
+	findings = ApplyPolicy(findings, config)
+
 	if findings == nil {
 		findings = []Finding{}
 	}
+
+	// Calculate risk using the policy-adjusted findings.
 	score := CalculateRiskScore(findings)
 
 	report := Report{
@@ -96,14 +120,16 @@ func main() {
 		},
 	}
 
-	// Output the report.
+	// Generate the requested report.
 	var output any
 
 	switch format {
 	case "json":
 		output = report
+
 	case "sarif":
 		output = buildSARIF(findings, *planPath)
+
 	default:
 		printTextReport(plan, report)
 	}
@@ -118,7 +144,7 @@ func main() {
 		}
 	}
 
-	// Enforce the configured severity threshold.
+	// Enforce the failure threshold after applying the policy.
 	if *failOn == "" {
 		return
 	}
@@ -134,6 +160,7 @@ func main() {
 					finding.RuleID,
 				)
 			}
+
 			os.Exit(1)
 		}
 	}
@@ -150,7 +177,8 @@ func printTextReport(plan *Plan, report Report) {
 	fmt.Println("-----------------------")
 
 	for _, resource := range plan.ResourceChanges {
-		fmt.Printf("%s (%s): %s\n",
+		fmt.Printf(
+			"%s (%s): %s\n",
 			resource.Address,
 			resource.Type,
 			strings.Join(resource.Change.Actions, ", "),
@@ -172,7 +200,8 @@ func printTextReport(plan *Plan, report Report) {
 	}
 
 	for _, finding := range report.Findings {
-		fmt.Printf("[%s] %s - %s\n",
+		fmt.Printf(
+			"[%s] %s - %s\n",
 			finding.Severity,
 			finding.Resource,
 			finding.Message,

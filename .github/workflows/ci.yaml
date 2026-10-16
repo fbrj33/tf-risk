@@ -1,16 +1,16 @@
-
 name: tf-risk CI
-permissions:
-  contents: read
-  security-events: write
+
 on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   test:
-    name: Test and build
+    name: Test, Build and Security Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -23,18 +23,35 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Run go vet
+        run: go vet ./...
+
       - name: Run tests
         run: go test ./...
 
-      - name: Build CLI
+      - name: Run tests with coverage
+        run: go test -cover ./...
+
+      - name: Build tf-risk
         run: go build -o tf-risk .
+
+      - name: Verify safe plan
+        run: |
+          ./tf-risk \
+            --plan examples/basic/plan.json \
+            --fail-on high
 
       - name: Verify unsafe plan is blocked
         shell: bash
         run: |
           set +e
-          go run . --plan examples/basic/unsafe-plan.json --fail-on high
+
+          ./tf-risk \
+            --plan examples/basic/unsafe-plan.json \
+            --fail-on high
+
           status=$?
+
           set -e
 
           if [ "$status" -eq 0 ]; then
@@ -48,17 +65,26 @@ jobs:
           fi
 
           echo "PASS: Unsafe plan was blocked."
-      
-      - name: Generate SARIF report
-        if: always()
+
+      - name: Generate JSON report
         run: |
-          go run . --plan examples/basic/unsafe-plan.json --format sarif > tf-risk.sarif
+          ./tf-risk \
+            --plan examples/basic/unsafe-plan.json \
+            --format json > tf-risk.json
+
+      - name: Generate SARIF report
+        run: |
+          ./tf-risk \
+            --plan examples/basic/unsafe-plan.json \
+            --format sarif > tf-risk.sarif
+
+      - name: Validate SARIF JSON
+        run: |
+          python -m json.tool tf-risk.sarif > /dev/null
+          echo "SARIF is valid JSON."
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: tf-risk.sarif
-
-         
-      

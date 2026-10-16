@@ -103,7 +103,7 @@ func main() {
 	case "json":
 		output = report
 	case "sarif":
-		output = buildSARIF(findings)
+		output = buildSARIF(findings, *planPath)
 	default:
 		printTextReport(plan, report)
 	}

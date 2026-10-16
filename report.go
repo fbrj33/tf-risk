@@ -1,5 +1,7 @@
 package main
 
+import "path/filepath"
+
 type Report struct {
 	RiskScore int       `json:"risk_score"`
 	RiskLevel string    `json:"risk_level"`
@@ -74,9 +76,11 @@ type Text struct {
 	Text string `json:"text"`
 }
 
-func buildSARIF(findings []Finding) SARIFReport {
+func buildSARIF(findings []Finding, planPath string) SARIFReport {
 	rulesByID := make(map[string]SARIFRule)
 	results := make([]SARIFResult, 0, len(findings))
+
+	planURI := filepath.ToSlash(filepath.Clean(planPath))
 
 	for _, finding := range findings {
 		rulesByID[finding.RuleID] = SARIFRule{
@@ -105,7 +109,7 @@ func buildSARIF(findings []Finding) SARIFReport {
 				{
 					PhysicalLocation: SARIFPhysicalLocation{
 						ArtifactLocation: SARIFArtifactLocation{
-							URI: "examples/basic/unsafe-plan.json",
+							URI: planURI,
 						},
 					},
 				},

@@ -26,9 +26,6 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Run tests
-        run: go test ./...
-
       - name: Run tests with coverage
         run: go test -cover ./...
 
@@ -72,7 +69,7 @@ jobs:
             --plan examples/basic/unsafe-plan.json \
             --format json > tf-risk.json
 
-        - name: Generate SARIF report
+      - name: Generate SARIF report
         run: |
           ./tf-risk \
             --plan examples/basic/unsafe-plan.json \

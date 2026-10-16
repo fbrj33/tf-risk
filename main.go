@@ -33,17 +33,19 @@ func main() {
 		"tf-risk.yaml",
 		"Path to security policy YAML file",
 	)
+
 	listRules := flag.Bool(
-	   "list-rules",
-	   false,
-	   "List supported security rules and exit",
-   )
+		"list-rules",
+		false,
+		"List supported security rules and exit",
+	)
 
 	flag.Parse()
+
 	if *listRules {
-	printRules()
-	return
-   }
+		printRules()
+		return
+	}
 
 	// Validate the output format.
 	format := strings.ToLower(strings.TrimSpace(*outputFormat))
@@ -241,7 +243,10 @@ func severityRank(severity string) (int, bool) {
 	default:
 		return 0, false
 	}
-	func printRules() {
+}
+
+// printRules lists every supported rule, sorted by ID.
+func printRules() {
 	fmt.Println("tf-risk - Supported Security Rules")
 	fmt.Println("----------------------------------")
 
@@ -255,5 +260,4 @@ func severityRank(severity string) (int, bool) {
 	for _, id := range ruleIDs {
 		fmt.Printf("%s: %s\n", id, supportedRules[id])
 	}
-}
 }

@@ -36,16 +36,24 @@ func LoadConfig(path string) (PolicyConfig, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return config, fmt.Errorf("reading config %q: %w", path, err)
+		return config, fmt.Errorf("reading config %s: %w", path, err)
 	}
 
 	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
 	decoder.KnownFields(true)
 
 	if err := decoder.Decode(&config); err != nil {
-		return config, fmt.Errorf("parsing config %q: %w", path, err)
+		return config, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
+	if err := validateConfig(&config); err != nil {
+		return config, fmt.Errorf("invalid config %s: %w", path, err)
+	}
+
+	return config, nil
+}
+
+func validateConfig(config *PolicyConfig) error {
 	normalizedOverrides := make(map[string]string)
 
 	for ruleID, severity := range config.SeverityOverrides {
@@ -53,21 +61,14 @@ func LoadConfig(path string) (PolicyConfig, error) {
 		severity = strings.ToUpper(strings.TrimSpace(severity))
 
 		if _, exists := supportedRules[ruleID]; !exists {
-			return config, fmt.Errorf(
-				"unknown rule ID %q in severity_overrides",
-				ruleID,
-			)
+			return fmt.Errorf("unknown rule ID %q in severity_overrides", ruleID)
 		}
 
 		switch severity {
 		case "LOW", "MEDIUM", "HIGH", "CRITICAL":
 			normalizedOverrides[ruleID] = severity
 		default:
-			return config, fmt.Errorf(
-				"invalid severity %q for rule %s",
-				severity,
-				ruleID,
-			)
+			return fmt.Errorf("invalid severity %q for rule %s", severity, ruleID)
 		}
 	}
 
@@ -79,24 +80,18 @@ func LoadConfig(path string) (PolicyConfig, error) {
 		ruleID = strings.ToUpper(strings.TrimSpace(ruleID))
 
 		if _, exists := supportedRules[ruleID]; !exists {
-			return config, fmt.Errorf(
-				"unknown rule ID %q in disabled_rules",
-				ruleID,
-			)
+			return fmt.Errorf("unknown rule ID %q in disabled_rules", ruleID)
 		}
 
 		if seen[ruleID] {
-			return config, fmt.Errorf(
-				"duplicate rule ID %q in disabled_rules",
-				ruleID,
-			)
+			return fmt.Errorf("duplicate rule ID %q in disabled_rules", ruleID)
 		}
 
 		seen[ruleID] = true
 		config.DisabledRules[i] = ruleID
 	}
 
-	return config, nil
+	return nil
 }
 
 func ApplyPolicy(findings []Finding, config PolicyConfig) []Finding {

@@ -170,4 +170,163 @@ func TestDetectsWildcardIAMPolicy(t *testing.T) {
 
 	t.Fatal("expected TF006 for wildcard IAM policy")
 }
+func TestDetectsPublicIPv6SSH(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_security_group.ipv6_ssh",
+				Type:    "aws_security_group",
+				Change: Change{
+					Actions: []string{"create"},
+					After: map[string]interface{}{
+						"ingress": []interface{}{
+							map[string]interface{}{
+								"from_port": float64(22),
+								"to_port":   float64(22),
+								"protocol":  "tcp",
+								"ipv6_cidr_blocks": []interface{}{
+									"::/0",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
+	findings := AnalyzePlan(plan)
+	if !hasRule(findings, "TF003") {
+		t.Fatal("expected TF003 for SSH exposed to public IPv6")
+	}
+
+}
+func TestDetectsPublicIPv6RDP(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_security_group.ipv6_rdp",
+				Type:    "aws_security_group",
+				Change: Change{
+					Actions: []string{"create"},
+					After: map[string]interface{}{
+						"ingress": []interface{}{
+							map[string]interface{}{
+								"from_port": float64(3389),
+								"to_port":   float64(3389),
+								"protocol":  "tcp",
+								"ipv6_cidr_blocks": []interface{}{
+									"::/0",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+	if !hasRule(findings, "TF004") {
+		t.Fatal("expected TF004 for RDP exposed to public IPv6")
+	}
+}
+func TestDoesNotFlagPrivateIPv6SSH(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_security_group.private_ipv6",
+				Type:    "aws_security_group",
+				Change: Change{
+					Actions: []string{"create"},
+					After: map[string]interface{}{
+						"ingress": []interface{}{
+							map[string]interface{}{
+								"from_port": float64(22),
+								"to_port":   float64(22),
+								"protocol":  "tcp",
+								"ipv6_cidr_blocks": []interface{}{
+									"2001:db8::/64",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+	if hasRule(findings, "TF003") {
+		t.Fatal("unexpected TF003 for restricted IPv6 CIDR")
+	}
+}
+
+func TestDatabaseDeletionProducesTF001AndTF002(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_db_instance.production",
+				Type:    "aws_db_instance",
+				Change: Change{
+					Actions: []string{"delete"},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	if !hasRule(findings, "TF001") {
+		t.Fatal("expected TF001 for database deletion")
+	}
+	if !hasRule(findings, "TF002") {
+		t.Fatal("expected TF002 for resource deletion")
+	}
+}
+
+func TestRegularResourceDeletionProducesTF002Only(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_instance.demo",
+				Type:    "aws_instance",
+				Change: Change{
+					Actions: []string{"delete"},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	if !hasRule(findings, "TF002") {
+		t.Fatal("expected TF002 for resource deletion")
+	}
+	if hasRule(findings, "TF001") {
+		t.Fatal("unexpected TF001 for non-database deletion")
+	}
+}
+
+func TestDatabaseReplacementProducesTF001AndTF002(t *testing.T) {
+	plan := &Plan{
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_db_instance.production",
+				Type:    "aws_db_instance",
+				Change: Change{
+					Actions: []string{"delete", "create"},
+				},
+			},
+		},
+	}
+
+	findings := AnalyzePlan(plan)
+
+	if !hasRule(findings, "TF001") {
+		t.Fatal("expected TF001 for database replacement")
+	}
+	if !hasRule(findings, "TF002") {
+		t.Fatal("expected TF002 for resource replacement")
+	}
+}

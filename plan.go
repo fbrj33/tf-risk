@@ -18,8 +18,9 @@ type ResourceChange struct {
 }
 
 type Change struct {
-	Actions []string               `json:"actions"`
-	After   map[string]interface{} `json:"after"`
+	Actions      []string               `json:"actions"`
+	After        map[string]interface{} `json:"after"`
+	AfterUnknown map[string]interface{} `json:"after_unknown"`
 }
 
 func LoadPlan(path string) (*Plan, error) {

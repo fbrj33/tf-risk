@@ -20,6 +20,12 @@ var supportedRules = map[string]string{
 	"TF004": "RDP exposed to the public internet",
 	"TF005": "Potentially public S3 bucket configuration",
 	"TF006": "Overly permissive IAM policy",
+	"TF007": "Unencrypted EBS volume",
+	"TF008": "Unencrypted RDS storage",
+	"TF009": "Publicly accessible RDS database",
+	"TF010": "Missing or invalid S3 encryption configuration",
+	"TF011": "Sensitive ingress ports exposed publicly",
+	"TF012": "Overly permissive security group ingress",
 }
 
 func LoadConfig(path string) (PolicyConfig, error) {

@@ -1,0 +1,81 @@
+name: "Terraform Risk & Security Gate"
+description: "Scan Terraform plans for infrastructure security risks"
+author: "Farah Ben Rejeb"
+
+inputs:
+  plan:
+    description: "Path to Terraform plan JSON"
+    required: true
+
+  fail-on:
+    description: "Minimum severity that fails the job"
+    required: false
+    default: "high"
+
+  format:
+    description: "Report format: text, json, or sarif"
+    required: false
+    default: "sarif"
+
+  config:
+    description: "Optional path to tf-risk YAML policy"
+    required: false
+    default: ""
+
+outputs:
+  report-path:
+    description: "Path to the generated report"
+    value: ${{ steps.scan.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+
+    - name: Build tf-risk
+      shell: bash
+      run: go build -o "$RUNNER_TEMP/tf-risk" .
+      working-directory: ${{ github.action_path }}
+
+    - name: Scan Terraform plan
+      id: scan
+      shell: bash
+      env:
+        INPUT_PLAN: ${{ inputs.plan }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        set -e
+
+        case "$INPUT_FORMAT" in
+          text)  report="tf-risk-report.txt" ;;
+          json)  report="tf-risk-report.json" ;;
+          sarif) report="tf-risk.sarif" ;;
+          *)
+            echo "Unsupported format: $INPUT_FORMAT"
+            exit 2
+            ;;
+        esac
+
+        if [ -n "$INPUT_CONFIG" ]; then
+          config="$INPUT_CONFIG"
+        else
+          config="$RUNNER_TEMP/tf-risk.yaml"
+          printf 'disabled_rules: []\nseverity_overrides: {}\n' > "$config"
+        fi
+
+        echo "report-path=$report" >> "$GITHUB_OUTPUT"
+
+        set +e
+        "$RUNNER_TEMP/tf-risk" \
+          --plan "$INPUT_PLAN" \
+          --config "$config" \
+          --format "$INPUT_FORMAT" \
+          --fail-on "$INPUT_FAIL_ON" | tee "$report"
+
+        status=${PIPESTATUS[0]}
+        exit "$status"

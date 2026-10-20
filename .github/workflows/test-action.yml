@@ -1,0 +1,33 @@
+name: Test tf-risk Action
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test security scan
+        id: scan
+        uses: ./
+        with:
+          plan: examples/basic/unsafe-plan.json
+          fail-on: high
+          format: sarif
+
+      - name: Upload SARIF report
+        if: always() && hashFiles('tf-risk.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tf-risk.sarif
+          

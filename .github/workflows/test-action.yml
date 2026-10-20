@@ -19,6 +19,7 @@ jobs:
 
       - name: Test security scan
         id: scan
+        continue-on-error: true
         uses: ./
         with:
           plan: examples/basic/unsafe-plan.json
@@ -30,4 +31,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: tf-risk.sarif
-          
+

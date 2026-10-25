@@ -1,3 +1,4 @@
+
 name: Test tf-risk Action
 
 on:
@@ -26,9 +27,47 @@ jobs:
           fail-on: high
           format: sarif
 
+      - name: Verify expected scan failure and SARIF finding
+        if: always()
+        shell: bash
+        env:
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          if [ "$SCAN_OUTCOME" != "failure" ]; then
+            echo "ERROR: Expected the unsafe plan scan to fail."
+            echo "Actual outcome: $SCAN_OUTCOME"
+            exit 1
+          fi
+
+          if [ ! -s tf-risk.sarif ]; then
+            echo "ERROR: SARIF report is missing or empty."
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("tf-risk.sarif")
+          report = json.loads(path.read_text(encoding="utf-8"))
+
+          if report.get("version") != "2.1.0":
+              raise SystemExit("ERROR: Invalid SARIF version.")
+
+          results = [
+              result
+              for run in report.get("runs", [])
+              for result in run.get("results", [])
+          ]
+
+          if not any(result.get("ruleId") == "TF003" for result in results):
+              raise SystemExit("ERROR: Expected TF003 finding is missing.")
+
+          print("PASS: Unsafe plan was blocked and TF003 was reported.")
+          PY
+
       - name: Upload SARIF report
-        if: always() && hashFiles('tf-risk.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        if: success() && github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: tf-risk.sarif
-

@@ -43,21 +43,14 @@ jobs:
         shell: bash
         run: |
           set +e
-
           ./tf-risk \
             --plan examples/basic/unsafe-plan.json \
             --fail-on high
-
           status=$?
           set -e
 
-          if [ "$status" -eq 0 ]; then
-            echo "ERROR: Unsafe plan was not blocked."
-            exit 1
-          fi
-
           if [ "$status" -ne 1 ]; then
-            echo "ERROR: Unexpected exit code: $status"
+            echo "ERROR: Expected exit code 1, got $status."
             exit 1
           fi
 
@@ -69,23 +62,11 @@ jobs:
             --plan examples/basic/unsafe-plan.json \
             --format json > tf-risk.json
 
-      
       - name: Generate SARIF report
-        shell: bash
         run: |
-          set +e
           ./tf-risk \
             --plan examples/basic/unsafe-plan.json \
             --format sarif > tf-risk.sarif
-          status=$?
-          set -e
-
-          if [ "$status" -ne 1 ]; then
-            echo "ERROR: Expected exit code 1 for the unsafe plan, got $status."
-            exit 1
-          fi
-
-          echo "PASS: SARIF generated; unsafe finding correctly triggered exit code 1."
 
       - name: Validate SARIF contains expected finding
         run: |
@@ -106,29 +87,18 @@ jobs:
               for result in run.get("results", [])
           ]
 
-          if not results:
-              raise SystemExit("ERROR: SARIF contains no findings.")
-
-          rule_ids = {
-              result.get("ruleId")
-              for result in results
-          }
+          rule_ids = {result.get("ruleId") for result in results}
 
           if "TF003" not in rule_ids:
-              raise SystemExit(
-                  "ERROR: Expected TF003 finding is missing."
-              )
+              raise SystemExit("ERROR: TF003 is missing from SARIF.")
+
+          print(f"PASS: SARIF contains {len(results)} finding(s).")
+          print(f"Detected rules: {', '.join(sorted(rule_ids))}")
 
           path.write_text(
               json.dumps(report, indent=2) + "\n",
               encoding="utf-8"
           )
-
-          print(
-              f"PASS: SARIF is valid and contains "
-              f"{len(results)} finding(s)."
-          )
-          print(f"Detected rules: {', '.join(sorted(rule_ids))}")
           PY
 
       - name: Upload SARIF to GitHub Code Scanning

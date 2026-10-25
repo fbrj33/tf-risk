@@ -69,11 +69,23 @@ jobs:
             --plan examples/basic/unsafe-plan.json \
             --format json > tf-risk.json
 
+      
       - name: Generate SARIF report
+        shell: bash
         run: |
+          set +e
           ./tf-risk \
             --plan examples/basic/unsafe-plan.json \
             --format sarif > tf-risk.sarif
+          status=$?
+          set -e
+
+          if [ "$status" -ne 1 ]; then
+            echo "ERROR: Expected exit code 1 for the unsafe plan, got $status."
+            exit 1
+          fi
+
+          echo "PASS: SARIF generated; unsafe finding correctly triggered exit code 1."
 
       - name: Validate SARIF contains expected finding
         run: |

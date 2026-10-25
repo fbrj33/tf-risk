@@ -1,3 +1,4 @@
+
 name: tf-risk CI
 
 on:
@@ -48,7 +49,6 @@ jobs:
             --fail-on high
 
           status=$?
-
           set -e
 
           if [ "$status" -eq 0 ]; then
@@ -75,30 +75,52 @@ jobs:
             --plan examples/basic/unsafe-plan.json \
             --format sarif > tf-risk.sarif
 
-      - name: Validate and normalize SARIF
+      - name: Validate SARIF contains expected finding
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
           path = Path("tf-risk.sarif")
-          content = path.read_bytes()
-
-          # Remove a UTF-8 BOM if one exists.
-          content = content.removeprefix(b"\xef\xbb\xbf")
-
-          # Reject invalid JSON and write clean UTF-8 JSON.
+          content = path.read_bytes().removeprefix(b"\xef\xbb\xbf")
           report = json.loads(content.decode("utf-8"))
+
+          if report.get("version") != "2.1.0":
+              raise SystemExit("ERROR: Unexpected SARIF version.")
+
+          results = [
+              result
+              for run in report.get("runs", [])
+              for result in run.get("results", [])
+          ]
+
+          if not results:
+              raise SystemExit("ERROR: SARIF contains no findings.")
+
+          rule_ids = {
+              result.get("ruleId")
+              for result in results
+          }
+
+          if "TF003" not in rule_ids:
+              raise SystemExit(
+                  "ERROR: Expected TF003 finding is missing."
+              )
+
           path.write_text(
               json.dumps(report, indent=2) + "\n",
               encoding="utf-8"
           )
 
-          print("SARIF is valid UTF-8 JSON.")
+          print(
+              f"PASS: SARIF is valid and contains "
+              f"{len(results)} finding(s)."
+          )
+          print(f"Detected rules: {', '.join(sorted(rule_ids))}")
           PY
 
       - name: Upload SARIF to GitHub Code Scanning
-        if: success()
+        if: success() && github.event_name == 'push'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: tf-risk.sarif
